@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<link rel="icon" href="data:," />
+<title>Discovering Vulnerabilities with Claude — Tutorial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Kalam:wght@400;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f5f2eb;
+    --paper-warm:#fdcf9f;
+    --ink:#1c1710;
+    --ink-soft:#4a4234;
+    --orange:#ff6a2b;
+    --orange-deep:#d94e12;
+    --bar:#171310;
+    --bar-ink:#f5f2eb;
+    --line:#d8cdb8;
+    --card:#fffdf8;
+    --chip:#ffe9d2;
+    --good:#1e7a3c;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;background:var(--bar);color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    display:flex;flex-direction:column;height:100dvh;overflow:hidden;
+  }
+  /* ---------- top + bottom bars ---------- */
+  .topbar,.botbar{
+    background:var(--bar);color:var(--bar-ink);
+    display:flex;align-items:center;gap:14px;
+    padding:10px 18px;flex:0 0 auto;z-index:5;
+  }
+  .topbar{border-bottom:3px solid var(--orange);}
+  .botbar{border-top:3px solid var(--orange);}
+  .brand{
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;
+    letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .brand span{color:var(--orange);}
+  .topbar .spacer,.botbar .spacer{flex:1;}
+  .barbtn{
+    background:#2a231c;color:var(--bar-ink);border:1px solid #4a3f31;
+    font-family:'Inter',sans-serif;font-size:13px;font-weight:600;
+    padding:7px 13px;border-radius:8px;cursor:pointer;white-space:nowrap;
+  }
+  .barbtn:hover{border-color:var(--orange);color:#ffb287;}
+  .counter{font-family:var(--mono);font-size:13px;color:#cbbfa8;white-space:nowrap;}
+  .progress{height:4px;background:#2a231c;flex:0 0 auto;}
+  .progress i{display:block;height:100%;background:var(--orange);width:5%;transition:width .35s ease;}
+  /* ---------- stage ---------- */
+  .stage{flex:1 1 auto;position:relative;overflow:hidden;background:var(--paper-warm);}
+  .slide{
+    position:absolute;inset:0;display:none;overflow-y:auto;
+    background:linear-gradient(160deg,var(--paper-warm) 0%,var(--paper) 34%,var(--paper) 100%);
+    padding:34px clamp(18px,5vw,64px) 40px;
+  }
+  .slide.active{display:block;animation:slideIn .38s ease;}
+  @keyframes slideIn{from{opacity:0;transform:translateX(14px);}to{opacity:1;transform:none;}}
+  .inner{max-width:1020px;margin:0 auto;}
+  .kicker{
+    font-family:'Kalam',cursive;color:var(--orange-deep);font-size:clamp(17px,2.2vw,21px);
+    margin:0 0 6px;font-weight:700;
+  }
+  h1{
+    font-family:'Space Grotesk',sans-serif;font-weight:700;
+    font-size:clamp(30px,5.2vw,54px);line-height:1.06;margin:0 0 14px;letter-spacing:-.01em;
+  }
+  h2{
+    font-family:'Space Grotesk',sans-serif;font-weight:700;
+    font-size:clamp(24px,3.8vw,38px);line-height:1.12;margin:0 0 16px;letter-spacing:-.01em;
+  }
+  .lede{font-size:clamp(16px,2vw,20px);line-height:1.5;color:var(--ink-soft);max-width:46em;margin:0 0 20px;}
+  .points{display:grid;gap:12px;margin:18px 0;}
+  .point{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:15px 18px;font-size:clamp(15px,1.8vw,17.5px);line-height:1.55;
+    display:flex;gap:13px;align-items:flex-start;
+  }
+  .point .n{
+    flex:0 0 auto;width:28px;height:28px;border-radius:50%;
+    background:var(--orange);color:#fff;font-weight:700;font-size:14px;
+    display:flex;align-items:center;justify-content:center;margin-top:1px;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .point b{font-weight:700;}
+  .tag{
+    display:inline-block;background:var(--chip);border:1px solid #f3b98a;color:#8a3c08;
+    font-size:12.5px;font-weight:700;border-radius:999px;padding:3px 11px;margin:2px 4px 2px 0;
+    font-family:var(--mono);
+  }
+  .src{font-size:13.5px;color:var(--ink-soft);margin-top:16px;line-height:1.6;}
+  .src a{color:var(--orange-deep);font-weight:600;}
+  /* stat row */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0 6px;}
+  .stat{
+    background:var(--bar);color:var(--bar-ink);border-radius:12px;padding:16px 14px;text-align:center;
+  }
+  .stat .num{font-family:'Space Grotesk',sans-serif;font-size:clamp(30px,4.4vw,46px);font-weight:700;color:var(--orange);line-height:1;}
+  .stat .lab{font-size:12.5px;color:#d9cdb4;margin-top:7px;line-height:1.4;}
+  /* stepper */
+  .stepper{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 12px;}
+  .stepbtn{
+    font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;
+    background:var(--card);border:2px solid var(--line);border-radius:10px;
+    padding:10px 15px;cursor:pointer;color:var(--ink);
+  }
+  .stepbtn[aria-pressed="true"]{border-color:var(--orange);background:var(--chip);}
+  .steppanel{
+    background:var(--card);border:1px solid var(--line);border-left:6px solid var(--orange);
+    border-radius:12px;padding:16px 19px;font-size:clamp(15px,1.8vw,17px);line-height:1.55;min-height:96px;
+  }
+  .steppanel h3{font-family:'Space Grotesk',sans-serif;margin:0 0 6px;font-size:19px;}
+  /* chain animation */
+  .chainbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:18px 0;}
+  .chainbox .cb-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  .chainbox .cb-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16.5px;}
+  .replay{
+    background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;
+    font-family:'Inter',sans-serif;font-weight:700;font-size:13.5px;padding:8px 16px;
+  }
+  .replay:hover{background:var(--orange-deep);}
+  .chain{display:flex;align-items:stretch;gap:0;flex-wrap:nowrap;}
+  .cstep{
+    flex:1 1 0;background:var(--paper);border:2px solid var(--line);border-radius:10px;
+    padding:11px 10px;text-align:center;opacity:.38;transition:opacity .3s,border-color .3s,background .3s;
+  }
+  .cstep .cs-t{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;line-height:1.25;}
+  .cstep .cs-d{font-size:12px;color:var(--ink-soft);line-height:1.4;margin-top:4px;}
+  .cstep.on{opacity:1;border-color:var(--orange);background:var(--chip);}
+  .cstep.done{opacity:1;border-color:var(--good);}
+  .carrow{align-self:center;padding:0 5px;color:var(--orange-deep);font-weight:700;font-size:17px;flex:0 0 auto;}
+  .chainmsg{font-family:var(--mono);font-size:13.5px;margin-top:13px;min-height:20px;color:var(--ink-soft);}
+  .chainmsg b{color:var(--orange-deep);}
+  /* linux anim */
+  .ltrack{display:flex;gap:6px;margin:8px 0 4px;}
+  .lseg{border-radius:9px;height:52px;position:relative;overflow:hidden;background:#e7ddc9;border:1px solid var(--line);}
+  .lseg .fill{position:absolute;inset:0;width:0%;background:var(--orange);}
+  .lseg.s2 .fill{background:var(--bar);}
+  .lseg .seg-lab{
+    position:relative;z-index:1;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13.5px;
+    display:flex;align-items:center;justify-content:center;height:100%;text-align:center;padding:0 6px;
+  }
+  .lseg.filled .seg-lab{color:#fff;}
+  .term{
+    background:var(--bar);color:#9fe8a9;border-radius:10px;font-family:var(--mono);
+    font-size:14px;padding:13px 16px;margin-top:12px;opacity:0;transition:opacity .4s;min-height:48px;
+  }
+  .term.show{opacity:1;}
+  .term .who{color:var(--orange);}
+  /* graphs */
+  .graph{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:18px 0;}
+  .graph h3{font-family:'Space Grotesk',sans-serif;font-size:17px;margin:0 0 4px;}
+  .graph p{font-size:13.5px;color:var(--ink-soft);margin:0 0 12px;line-height:1.5;}
+  .graph svg{width:100%;height:auto;display:block;}
+  svg text{font-family:'Inter',sans-serif;}
+  /* deep dive blocks */
+  .dd{display:grid;gap:12px;margin:18px 0;}
+  .dd .block{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 18px;font-size:clamp(15px,1.8vw,17px);line-height:1.55;}
+  .dd .block h3{
+    font-family:'Kalam',cursive;color:var(--orange-deep);font-size:17px;margin:0 0 5px;font-weight:700;
+  }
+  /* cover */
+  .cover-badges{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0;}
+  .cover-card{
+    background:var(--bar);color:var(--bar-ink);border-radius:14px;padding:20px 22px;margin-top:22px;
+    font-size:clamp(15px,1.9vw,17.5px);line-height:1.6;
+  }
+  .cover-card b{color:var(--orange);}
+  /* dots */
+  .dots{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;overflow:hidden;}
+  .dot{
+    width:10px;height:10px;border-radius:50%;background:#4a3f31;border:none;cursor:pointer;padding:0;flex:0 0 auto;
+  }
+  .dot.on{background:var(--orange);width:22px;border-radius:6px;}
+  .navbtn{
+    background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;
+    font-family:'Inter',sans-serif;font-weight:700;font-size:14px;padding:9px 16px;white-space:nowrap;
+  }
+  .navbtn:disabled{background:#3a322a;color:#8d8172;cursor:default;}
+  .q-list{display:grid;gap:12px;margin:18px 0;}
+  .q{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 19px;
+    font-size:clamp(16px,2vw,19px);line-height:1.5;font-family:'Space Grotesk',sans-serif;font-weight:600;
+  }
+  .q span{color:var(--orange-deep);font-family:'Kalam',cursive;display:block;font-size:15px;margin-bottom:4px;}
+  @media (max-width:760px){
+    .stats{grid-template-columns:repeat(2,1fr);}
+    .chain{flex-direction:column;gap:6px;}
+    .carrow{transform:rotate(90deg);padding:2px 0;}
+    .brand{display:none;}
+    .dots{display:none;}
+    .slide{padding:24px 16px 32px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .slide.active{animation:none;}
+    .cstep,.term,.progress i{transition:none;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">Discovering Vulnerabilities with <span>Claude</span> — Tutorial</div>
+  <div class="spacer"></div>
+  <div class="counter" id="counter">1 / 20</div>
+  <button class="barbtn" id="fsBtn" type="button">Fullscreen</button>
+</header>
+<div class="progress"><i id="prog"></i></div>
+
+<main class="stage" id="stage">
+
+<!-- 1 · COVER -->
+<section class="slide" data-title="Cover">
+  <div class="inner">
+    <p class="kicker">Anthropic research · October 27, 2026</p>
+    <h1>Discovering Vulnerabilities with Claude</h1>
+    <p class="lede">Claude built five attack chains against Chrome, Safari, Android, Windows, and Linux. Each chain ran after one initial prompt. Each chain needed little or no action from the user.</p>
+    <div class="cover-badges">
+      <span class="tag">5 attack chains</span>
+      <span class="tag">62 Chrome CVEs</span>
+      <span class="tag">CVE-2026-33096</span>
+      <span class="tag">CVE-2026-98432</span>
+      <span class="tag">48 min + 5 min</span>
+    </div>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0">Anthropic tested an unreleased internal research model. Anthropic named the model Claude in the article.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0">The Cyber Verification Program covers Claude Opus 5.5, Claude Sonnet 5.5, and Claude Mythos 5.1.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0">The targets run on devices that billions of people use every day.</p></div>
+    </div>
+    <p class="src">Source: Anthropic, “Discovering and exploiting vulnerabilities in critical, real-world software with Claude”, published October 27, 2026, updated October 30, 2026. <a href="https://www.anthropic.com/research/discovering-vulnerabilities-with-claude" target="_blank" rel="noopener">anthropic.com/research/discovering-vulnerabilities-with-claude</a></p>
+  </div>
+</section>
+
+<!-- 2 · WHY THESE TARGETS -->
+<section class="slide" data-title="Why these targets">
+  <div class="inner">
+    <p class="kicker">The targets</p>
+    <h2>Why Anthropic picked these targets</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>Billions of people run this software.</b> Chrome, Safari, Android, Windows, and Linux sit on phones, laptops, and servers worldwide. One bug in one product reaches a very large number of machines.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>Each chain started with one prompt.</b> A person gave Claude an initial prompt for each target. Claude did the research and the exploit work after that prompt.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>Each chain reached a critical result.</b> The chains ran code on the target machine, read protected data, bypassed a lock screen, or crashed a server. The article reports little to no user interaction for every chain.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 · FIVE CHAINS AT A GLANCE -->
+<section class="slide" data-title="Five chains at a glance">
+  <div class="inner">
+    <p class="kicker">The five chains</p>
+    <h2>Five chains at a glance</h2>
+    <div class="stats">
+      <div class="stat"><div class="num" data-count="5">0</div><div class="lab">attack chains in the report</div></div>
+      <div class="stat"><div class="num" data-count="62">0</div><div class="lab">CVEs assigned to the Chrome work</div></div>
+      <div class="stat"><div class="num" data-count="48">0</div><div class="lab">minutes for the Linux pointer leak</div></div>
+      <div class="stat"><div class="num" data-count="5">0</div><div class="lab">more minutes to a Linux root shell</div></div>
+    </div>
+    <div class="stepper" role="group" aria-label="Step through the five chains">
+      <button class="stepbtn" type="button" data-step="0" aria-pressed="true">1 · Chrome</button>
+      <button class="stepbtn" type="button" data-step="1" aria-pressed="false">2 · Safari</button>
+      <button class="stepbtn" type="button" data-step="2" aria-pressed="false">3 · Android</button>
+      <button class="stepbtn" type="button" data-step="3" aria-pressed="false">4 · Windows</button>
+      <button class="stepbtn" type="button" data-step="4" aria-pressed="false">5 · Linux</button>
+    </div>
+    <div class="steppanel" id="stepPanel"></div>
+    <p class="src">The five buttons switch the panel. Slides 4 to 8 cover one chain each.</p>
+  </div>
+</section>
+
+<!-- 4 · CHROME -->
+<section class="slide" data-title="Chrome one-click RCE">
+  <div class="inner">
+    <p class="kicker">Chain 1 · Chrome</p>
+    <h2>Chrome: one-click remote code execution</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>A heap bug in V8 opened the chain.</b> A second bug broke the V8 sandbox and defeated ASLR. A ROP chain then took control of the renderer process.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>Two more bugs left the sandbox.</b> A CacheStorage race read memory outside the sandbox and showed the browser process layout. A FedCM use-after-free then ran code outside the sandbox.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>The demo ran on stock Chrome.</b> The proof of concept opened Calculator on macOS within seconds of page load. The browser ran default settings. The page needed no further action.</p></div>
+    </div>
+    <div class="chainbox">
+      <div class="cb-head"><span class="cb-title">Replay the Chrome chain</span><button class="replay" type="button" data-replay="chrome">Replay</button></div>
+      <div class="chain" id="chromeChain">
+        <div class="cstep"><div class="cs-t">V8 heap corruption</div><div class="cs-d">Control inside the JavaScript engine</div></div>
+        <div class="carrow">→</div>
+        <div class="cstep"><div class="cs-t">Sandbox break + ROP</div><div class="cs-d">ASLR defeated, renderer taken</div></div>
+        <div class="carrow">→</div>
+        <div class="cstep"><div class="cs-t">CacheStorage race</div><div class="cs-d">Memory read outside the sandbox</div></div>
+        <div class="carrow">→</div>
+        <div class="cstep"><div class="cs-t">FedCM use-after-free</div><div class="cs-d">Code runs outside the sandbox</div></div>
+      </div>
+      <div class="chainmsg" id="chromeMsg">Press Replay to run the four steps in order.</div>
+    </div>
+    <div class="graph">
+      <h3>Figure 1 · The 62 Chrome CVEs by type</h3>
+      <p>Google assigned 62 CVEs and patched them as of Chrome 156. Every CVE rated critical or high.</p>
+      <svg viewBox="0 0 640 168" role="img" aria-label="Bar chart: 13 sandbox escapes, 21 renderer-compromising vulnerabilities, 28 other critical or high vulnerabilities, total 62">
+        <text x="0" y="18" font-size="13" font-weight="600" fill="#1c1710">Sandbox escapes</text>
+        <rect x="0" y="26" width="130" height="22" rx="4" fill="#ff6a2b"/>
+        <text x="140" y="42" font-size="14" font-weight="700" fill="#1c1710">13</text>
+        <text x="0" y="76" font-size="13" font-weight="600" fill="#1c1710">Renderer-compromising</text>
+        <rect x="0" y="84" width="210" height="22" rx="4" fill="#d94e12"/>
+        <text x="220" y="100" font-size="14" font-weight="700" fill="#1c1710">21</text>
+        <text x="0" y="134" font-size="13" font-weight="600" fill="#1c1710">Other critical or high</text>
+        <rect x="0" y="142" width="280" height="22" rx="4" fill="#171310"/>
+        <text x="290" y="158" font-size="14" font-weight="700" fill="#1c1710">28</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- 5 · SAFARI -->
+<section class="slide" data-title="Safari one-click">
+  <div class="inner">
+    <p class="kicker">Chain 2 · Safari</p>
+    <h2>Safari: one-click data access</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>A JavaScriptCore bug started the chain.</b> The use-after-free sat in TypedArray operations. A Gigacage bypass then gave read and write access to memory outside the Gigacage.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>An IPC bug opened the disk.</b> The WebContent sandbox bug let the exploit read browser history, cookies, and session databases from disk. The exploit then overwrote one variable and turned off the same-origin policy.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>The attack moved data only.</b> The chain ran no arbitrary code on the machine. Apple acknowledged the report on the day it arrived and shipped a fix promptly.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 · ANDROID -->
+<section class="slide" data-title="Android lock screen bypass">
+  <div class="inner">
+    <p class="kicker">Chain 3 · Android</p>
+    <h2>Android: lock screen bypass</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>Claude worked from the binaries.</b> Claude read source code, reversed Google Play services binaries, and removed the obfuscation. Claude tested the chain live on a physical Google Pixel 9.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>Three bugs removed three checks.</b> A USB host setting bypassed the block on USB for a locked phone. A second bug skipped device authorization and started pairing. A third flaw skipped the six-digit verification code.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>A fallback path finished the bypass.</b> The fallback sent raw bytes over USB and passed a hardcoded check. Google addressed the issue after the report.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 · WINDOWS -->
+<section class="slide" data-title="Windows remote denial of service">
+  <div class="inner">
+    <p class="kicker">Chain 4 · Windows</p>
+    <h2>Windows: remote denial of service</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>The bug sat in kernel QUIC code.</b> An out-of-bounds read in the Windows kernel QUIC and HTTP/3 code answered to any remote sender. No account and no local access played a part.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>A few packets crashed the machine.</b> The machine restarted after the crash. Repeated requests kept the machine crashing. Several million servers likely listen on this code.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>Ghidra led Claude to the bug.</b> Claude analyzed the binary in Ghidra and wrote an annotated C program that copied the features. Microsoft resolved the report. The CVE is CVE-2026-33096.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 · LINUX -->
+<section class="slide" data-title="Linux zero-click RCE">
+  <div class="inner">
+    <p class="kicker">Chain 5 · Linux</p>
+    <h2>Linux: zero-click remote code execution</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>A race caused a use-after-free.</b> The bug sat in the kernel networking stack, in a multipath TCP listener. A remote attacker ran commands as root with no credentials and no user action.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>Stage 1 leaked an address. Stage 2 ran the command.</b> Stage 1 made the kernel copy extra bytes and send the bytes back, and the leak defeated KASLR. Stage 2 overwrote a callback pointer with a staged payload and chained kernel functions into a shell command as root.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>A lost race cost nothing.</b> A lost race failed only the handshake, and the attacker retried without limit. The proof of concept leaked a kernel pointer in 48 minutes and reached shell execution in 5 more minutes. CVE-2026-98432 got a patch upstream and backports to all maintained stable branches.</p></div>
+    </div>
+    <div class="chainbox">
+      <div class="cb-head"><span class="cb-title">Replay the Linux chain</span><button class="replay" type="button" data-replay="linux">Replay</button></div>
+      <div class="ltrack">
+        <div class="lseg s1" id="lseg1" style="flex:48"><div class="fill"></div><div class="seg-lab">Stage 1 · Leak a kernel pointer · 48 min</div></div>
+        <div class="lseg s2" id="lseg2" style="flex:5"><div class="fill"></div><div class="seg-lab">5 min</div></div>
+      </div>
+      <div class="chainmsg" id="linuxMsg">Press Replay to run stage 1 and stage 2.</div>
+      <div class="term" id="linuxTerm"><span class="who">root@target:~#</span> id<br/>uid=0(root) gid=0(root)</div>
+    </div>
+    <div class="graph">
+      <h3>Figure 2 · Linux chain timeline, 53 minutes total</h3>
+      <p>The bar scales to real time. Stage 1 took 48 of the 53 minutes.</p>
+      <svg viewBox="0 0 640 120" role="img" aria-label="Timeline bar: 48 minutes to leak a kernel pointer, then 5 minutes to shell execution, 53 minutes total">
+        <rect x="0" y="30" width="580" height="34" rx="5" fill="#ff6a2b"/>
+        <rect x="580" y="30" width="60" height="34" rx="5" fill="#171310"/>
+        <text x="14" y="52" font-size="14" font-weight="700" fill="#ffffff">Stage 1 · KASLR leak · 48 min</text>
+        <text x="586" y="52" font-size="12" font-weight="700" fill="#ffffff">5 min</text>
+        <text x="0" y="88" font-size="13" fill="#4a4234">0 min</text>
+        <text x="420" y="88" font-size="13" fill="#4a4234">Pointer leaked at 48 min</text>
+        <text x="540" y="88" font-size="13" fill="#4a4234">Shell at 53 min</text>
+        <line x1="580" y1="24" x2="580" y2="70" stroke="#1c1710" stroke-width="2"/>
+      </svg>
+    </div>
+    <p class="src">Anthropic also reports local privilege escalation bugs on OpenBSD, FreeBSD, and Linux, plus sandbox escapes and web application bugs. The article prints no counts for those findings.</p>
+  </div>
+</section>
+
+<!-- 9 · WHAT ANTHROPIC LEARNED -->
+<section class="slide" data-title="What Anthropic learned">
+  <div class="inner">
+    <p class="kicker">The scanning platform</p>
+    <h2>What Anthropic learned about scanning</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>Compute and variety both raised the count.</b> More test-time compute found more vulnerabilities. More scanner types also found more. Anthropic ran many scanning agents in parallel on one platform.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>The platform measured each scanner.</b> Anthropic scored each scanner by the extra vulnerabilities that scanner added. The platform tracked coverage while the scans ran. Strategies ran from pure coverage to goal-based to threat-model-based.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>Every confirmed finding got two follow-ups.</b> Automated variant analysis looked for the same pattern in other places. A standard pipeline verified the finding and rated the risk.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 · BACKLOG AND PR SCANNING -->
+<section class="slide" data-title="Backlog and PR scanning">
+  <div class="inner">
+    <p class="kicker">The other half</p>
+    <h2>Fixing the backlog covers half of the work</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>Old bugs are only half of the count.</b> A team that patches every known bug still takes in new bugs with new code. The article splits the problem into the backlog and the rate of new bugs.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>Scanning at pull request time cuts the inflow.</b> A scan on each pull request catches a bug before the code merges. Fewer bugs enter the codebase, and the backlog grows more slowly.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>Anthropic shipped the guidance as a plugin.</b> The Claude Code plugin carries the security guidance from this work. Anthropic released the plugin in public.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 · DEFENDERS AND DISCLOSURE -->
+<section class="slide" data-title="Defenders and disclosure">
+  <div class="inner">
+    <p class="kicker">Defenders</p>
+    <h2>What defenders get from this report</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>One model now builds a whole chain.</b> Frontier models find several vulnerabilities and combine the bugs into one working exploit. The five chains needed little human work after the first prompt.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>Anthropic widened access for defenders.</b> The expanded Cyber Verification Program admits qualifying security professionals. The program covers Claude Opus 5.5, Claude Sonnet 5.5, and Claude Mythos 5.1.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>Disclosure ran on a fixed clock.</b> Vendors got 90 days to patch after each report. Anthropic waited 45 more days before discussing details past a public advisory.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 · SYNTHESIS -->
+<section class="slide" data-title="Synthesis">
+  <div class="inner">
+    <p class="kicker">Synthesis</p>
+    <h2>Five chains, one pattern</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>Every chain combined more than one bug.</b> Chrome chained four bugs. Safari chained three. Android chained three bugs and a fallback path. Single bugs alone did not reach the final result.</p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>The results were working exploits.</b> Two chains ran code on the target. One chain read protected data and turned off a browser policy. One chain bypassed a lock screen. One chain crashed servers from the network.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>Every vendor patched or addressed the report.</b> Google assigned 62 Chrome CVEs. Microsoft and the Linux maintainers each closed one CVE in this report. Apple shipped a fix promptly, and Google addressed the Android issue.</p></div>
+    </div>
+    <div class="graph">
+      <h3>Figure 3 · The five chains by result and user action</h3>
+      <p>Each dot marks one chain. Columns show the action the chain needed from the user.</p>
+      <svg viewBox="0 0 640 300" role="img" aria-label="Grid of the five chains by result and user action: Chrome runs code with one click, Safari reads data with one click, Android bypasses a lock with a USB cable, Windows stops a machine with no user action, Linux runs code as root with no user action">
+        <text x="150" y="18" font-size="13" font-weight="700" fill="#1c1710" text-anchor="middle">One click</text>
+        <text x="330" y="18" font-size="13" font-weight="700" fill="#1c1710" text-anchor="middle">No user action</text>
+        <text x="510" y="18" font-size="13" font-weight="700" fill="#1c1710" text-anchor="middle">USB cable attached</text>
+        <line x1="60" y1="26" x2="620" y2="26" stroke="#d8cdb8"/>
+        <text x="0" y="66" font-size="13" font-weight="600" fill="#1c1710">Runs code</text>
+        <text x="0" y="126" font-size="13" font-weight="600" fill="#1c1710">Reads data</text>
+        <text x="0" y="186" font-size="13" font-weight="600" fill="#1c1710">Bypasses lock</text>
+        <text x="0" y="246" font-size="13" font-weight="600" fill="#1c1710">Stops machine</text>
+        <line x1="60" y1="86" x2="620" y2="86" stroke="#e7ddc9"/>
+        <line x1="60" y1="146" x2="620" y2="146" stroke="#e7ddc9"/>
+        <line x1="60" y1="206" x2="620" y2="206" stroke="#e7ddc9"/>
+        <line x1="240" y1="26" x2="240" y2="266" stroke="#e7ddc9"/>
+        <line x1="420" y1="26" x2="420" y2="266" stroke="#e7ddc9"/>
+        <circle cx="150" cy="58" r="11" fill="#ff6a2b"/>
+        <text x="150" y="92" font-size="12.5" font-weight="700" fill="#1c1710" text-anchor="middle">Chrome</text>
+        <circle cx="330" cy="58" r="11" fill="#ff6a2b"/>
+        <text x="330" y="92" font-size="12.5" font-weight="700" fill="#1c1710" text-anchor="middle">Linux (as root)</text>
+        <circle cx="150" cy="118" r="11" fill="#d94e12"/>
+        <text x="150" y="152" font-size="12.5" font-weight="700" fill="#1c1710" text-anchor="middle">Safari</text>
+        <circle cx="510" cy="178" r="11" fill="#171310"/>
+        <text x="510" y="212" font-size="12.5" font-weight="700" fill="#1c1710" text-anchor="middle">Android</text>
+        <circle cx="330" cy="238" r="11" fill="#171310"/>
+        <text x="330" y="272" font-size="12.5" font-weight="700" fill="#1c1710" text-anchor="middle">Windows</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- 13 · SOURCES -->
+<section class="slide" data-title="Sources">
+  <div class="inner">
+    <p class="kicker">Sources</p>
+    <h2>Sources</h2>
+    <div class="points">
+      <div class="point"><span class="n">1</span><p style="margin:0"><b>The article.</b> Anthropic, “Discovering and exploiting vulnerabilities in critical, real-world software with Claude.” Published October 27, 2026. Updated October 30, 2026. <a href="https://www.anthropic.com/research/discovering-vulnerabilities-with-claude" target="_blank" rel="noopener">anthropic.com/research/discovering-vulnerabilities-with-claude</a></p></div>
+      <div class="point"><span class="n">2</span><p style="margin:0"><b>The CVE records.</b> CVE-2026-33096 covers the Windows kernel QUIC denial of service. CVE-2026-98432 covers the Linux kernel remote code execution. Google assigned 62 CVEs to the Chrome chain and the related Chrome findings.</p></div>
+      <div class="point"><span class="n">3</span><p style="margin:0"><b>The disclosure terms.</b> Coordinated disclosure gave vendors 90 days to patch. A further 45 days passed before Anthropic discussed details past a public advisory. Every number in this deck comes from the article.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 · DISCUSSION -->
+<section class="slide" data-title="Discussion">
+  <div class="inner">
+    <p class="kicker">Discussion</p>
+    <h2>Questions for the room</h2>
+    <div class="q-list">
+      <div class="q"><span>Question 1</span>A scanner finds one bug in a component. Where does the team look for variants of the same bug?</div>
+      <div class="q"><span>Question 2</span>A chain crosses two products from two teams. Which team owns the fix for the chain as a whole?</div>
+      <div class="q"><span>Question 3</span>A scan at pull request time adds minutes to each merge. How does a team measure the bugs that scan kept out?</div>
+    </div>
+    <p class="src">Source article: <a href="https://www.anthropic.com/research/discovering-vulnerabilities-with-claude" target="_blank" rel="noopener">anthropic.com/research/discovering-vulnerabilities-with-claude</a></p>
+  </div>
+</section>
+
+<!-- 15 · DEEP DIVE: V8, ROP, ASLR -->
+<section class="slide" data-title="Deep dive: V8, ROP and ASLR">
+  <div class="inner">
+    <p class="kicker">Deep dive 1 of 6 · Chrome internals</p>
+    <h2>V8 heap corruption, ROP, and ASLR</h2>
+    <div class="dd">
+      <div class="block"><h3>What each part does</h3><p style="margin:0">V8 is the JavaScript engine inside Chrome. V8 stores objects on a heap, a managed block of memory. Heap corruption writes wrong values into that memory, and V8 then reads the wrong values as real object data. ASLR randomizes memory addresses each time a program loads. ROP chains small instruction sequences that already sit inside the program.</p></div>
+      <div class="block"><h3>Why it matters, and when it applies</h3><p style="margin:0">A heap bug alone gives control only inside V8. ASLR blocks the next step, because the attacker does not know where code sits in memory. The Chrome chain applied the three in order: heap corruption for control, one leak for addresses, and a ROP chain to run the work inside the renderer.</p></div>
+      <div class="block"><h3>How ROP differs from injected code</h3><p style="margin:0">Injected code adds new instructions to memory, and modern systems block running data as code. A ROP chain adds no new instructions. The chain links existing sequences end to end, so the processor runs only code the program already carried.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 · DEEP DIVE: GIGACAGE -->
+<section class="slide" data-title="Deep dive: Gigacage">
+  <div class="inner">
+    <p class="kicker">Deep dive 2 of 6 · Safari internals</p>
+    <h2>Gigacage: the JavaScriptCore memory region</h2>
+    <div class="dd">
+      <div class="block"><h3>What it does</h3><p style="margin:0">Gigacage is a large reserved region of memory in JavaScriptCore, the Safari JavaScript engine. JavaScriptCore keeps JavaScript objects inside the region. Pointers from inside the region point only to addresses inside the region, by construction of the address math.</p></div>
+      <div class="block"><h3>Why it matters, and when it applies</h3><p style="margin:0">A memory bug inside the region damages JavaScript data only. Browser data outside the region stays untouched. A bypass applies after a first bug gives read and write inside the region. The Safari chain used the bypass to reach memory outside.</p></div>
+      <div class="block"><h3>How it differs from the V8 sandbox</h3><p style="margin:0">Gigacage and the Chrome V8 sandbox do the same job in two engines. Each one limits the damage from a single engine bug. The designs differ in layout and address math, so a bypass for one gives no help against the other.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 · DEEP DIVE: SOP + DATA-ONLY -->
+<section class="slide" data-title="Deep dive: same-origin policy">
+  <div class="inner">
+    <p class="kicker">Deep dive 3 of 6 · Browser policy</p>
+    <h2>Same-origin policy and data-only attacks</h2>
+    <div class="dd">
+      <div class="block"><h3>What it does</h3><p style="margin:0">The same-origin policy is a browser rule. A page from one site reads no data from another site. A data-only attack reads or changes data on the target and runs no code of its own.</p></div>
+      <div class="block"><h3>Why it matters, and when it applies</h3><p style="margin:0">Cookies and session databases on disk hold signed-in accounts. The Safari exploit read history, cookies, and session databases. The exploit then overwrote one variable in memory, and the policy stopped applying for that page.</p></div>
+      <div class="block"><h3>How it differs from code execution</h3><p style="margin:0">A code execution attack runs commands on the machine and controls the machine itself. A data-only attack takes the data and stops there. Defenses tuned for code execution, such as code signing checks, see nothing in a data-only attack.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 18 · DEEP DIVE: ANDROID LAYERS -->
+<section class="slide" data-title="Deep dive: Android lock layers">
+  <div class="inner">
+    <p class="kicker">Deep dive 4 of 6 · Android</p>
+    <h2>Android lock-screen layers and USB pairing</h2>
+    <div class="dd">
+      <div class="block"><h3>What each layer does</h3><p style="margin:0">Android checks a USB connection in layers. The lock state check blocks USB data while the phone is locked. The authorization check asks the owner to approve a new device. The six-digit code check compares a code on the phone with a code on the other device.</p></div>
+      <div class="block"><h3>Why it matters, and when it applies</h3><p style="margin:0">Each layer reads a different fact, so one correct check still blocks the connection. The layers apply to any person holding the phone with a cable. The Android chain removed the checks one at a time until the pairing completed on a locked Pixel 9.</p></div>
+      <div class="block"><h3>How the fallback differs</h3><p style="margin:0">The normal pairing path runs the checks in code. The fallback path sends raw bytes over USB for devices that fail the normal path. Raw bytes skip the code that runs the checks, so the hardcoded check in that path was the last one standing.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 · DEEP DIVE: QUIC + OOB -->
+<section class="slide" data-title="Deep dive: QUIC and OOB reads">
+  <div class="inner">
+    <p class="kicker">Deep dive 5 of 6 · Windows networking</p>
+    <h2>QUIC, HTTP/3, and out-of-bounds reads</h2>
+    <div class="dd">
+      <div class="block"><h3>What each part does</h3><p style="margin:0">QUIC is a transport protocol that carries traffic between machines. HTTP/3 runs on QUIC. An out-of-bounds read copies memory past the end of the buffer the code meant to read.</p></div>
+      <div class="block"><h3>Why it matters, and when it applies</h3><p style="margin:0">The Windows bug sat in kernel code, and kernel code runs with full system rights. A read far past the buffer hit memory the kernel had not mapped, and the machine crashed. Any remote sender could trigger the read with a few packets, so no account or local access applied.</p></div>
+      <div class="block"><h3>How a read differs from a write</h3><p style="margin:0">An out-of-bounds read copies data out and changes nothing in memory. The same bug class in the Linux chain leaked data as its first step. An out-of-bounds write changes memory, and attackers use writes to redirect execution. The Windows report used the read for denial of service only.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 20 · DEEP DIVE: KASLR, UAF, OTHER TOOLS -->
+<section class="slide" data-title="Deep dive: KASLR and race UAF">
+  <div class="inner">
+    <p class="kicker">Deep dive 6 of 6 · Linux kernel</p>
+    <h2>KASLR defeat, race use-after-free, and other tools</h2>
+    <div class="dd">
+      <div class="block"><h3>What each part does</h3><p style="margin:0">KASLR randomizes the address where the kernel loads at boot. A use-after-free reads or writes memory after the owner freed the memory. A race condition means two threads reach the same memory, and the order decides the outcome.</p></div>
+      <div class="block"><h3>Why it matters, and when it applies</h3><p style="margin:0">An attacker with no kernel address cannot aim a payload at a kernel function. The Linux chain made the kernel copy extra bytes into a reply, and the extra bytes carried a kernel pointer. The pointer gave the address KASLR hid. The race then placed attacker data in the freed slot, and stage 2 overwrote a callback pointer in that slot.</p></div>
+      <div class="block"><h3>How other tools differ</h3><p style="margin:0">Fuzzers send large numbers of inputs and record crashes. Static analyzers read code and flag patterns without running the code. Ghidra shows a human or a model the inside of a compiled binary. Each tool tests one layer well. None of the three plans a chain across components; the chains in this report needed that planning step.</p></div>
+    </div>
+    <p class="src">Source article: Anthropic, “Discovering and exploiting vulnerabilities in critical, real-world software with Claude”, October 27, 2026. <a href="https://www.anthropic.com/research/discovering-vulnerabilities-with-claude" target="_blank" rel="noopener">anthropic.com/research/discovering-vulnerabilities-with-claude</a></p>
+  </div>
+</section>
+
+</main>
+
+<footer class="botbar">
+  <button class="navbtn" id="prevBtn" type="button">← Prev</button>
+  <div class="dots" id="dots" aria-label="Slide navigation"></div>
+  <div class="spacer"></div>
+  <button class="navbtn" id="nextBtn" type="button">Next →</button>
+</footer>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var total = slides.length;
+  var counter = document.getElementById('counter');
+  var prog = document.getElementById('prog');
+  var prevBtn = document.getElementById('prevBtn');
+  var nextBtn = document.getElementById('nextBtn');
+  var dotsWrap = document.getElementById('dots');
+  var cur = 0;
+  var counted = false;
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  slides.forEach(function(_, i){
+    var d = document.createElement('button');
+    d.className = 'dot'; d.type = 'button';
+    d.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+    d.addEventListener('click', function(){ go(i); });
+    dotsWrap.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(dotsWrap.children);
+
+  function countUp(){
+    if (counted) return; counted = true;
+    document.querySelectorAll('[data-count]').forEach(function(el){
+      var target = parseInt(el.getAttribute('data-count'), 10);
+      if (reduced){ el.textContent = target; return; }
+      var start = null;
+      function tick(ts){
+        if (!start) start = ts;
+        var p = Math.min((ts - start) / 900, 1);
+        el.textContent = Math.round(target * p);
+        if (p < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  function go(i){
+    cur = Math.max(0, Math.min(total - 1, i));
+    slides.forEach(function(s, j){ s.classList.toggle('active', j === cur); });
+    dots.forEach(function(d, j){ d.classList.toggle('on', j === cur); });
+    counter.textContent = (cur + 1) + ' / ' + total;
+    prog.style.width = ((cur + 1) / total * 100) + '%';
+    prevBtn.disabled = cur === 0;
+    nextBtn.disabled = cur === total - 1;
+    slides[cur].scrollTop = 0;
+    try { history.replaceState(null, '', '#' + (cur + 1)); } catch(e){}
+    if (slides[cur].querySelector('[data-count]')) countUp();
+    document.title = 'Slide ' + (cur + 1) + ' · ' + (slides[cur].getAttribute('data-title') || '') + ' — Discovering Vulnerabilities with Claude';
+  }
+
+  prevBtn.addEventListener('click', function(){ go(cur - 1); });
+  nextBtn.addEventListener('click', function(){ go(cur + 1); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown'){ e.preventDefault(); go(cur + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); go(cur - 1); }
+    else if (e.key === 'Home'){ go(0); }
+    else if (e.key === 'End'){ go(total - 1); }
+  });
+
+  var fsBtn = document.getElementById('fsBtn');
+  fsBtn.addEventListener('click', function(){
+    if (document.fullscreenElement){ document.exitFullscreen(); }
+    else if (document.documentElement.requestFullscreen){ document.documentElement.requestFullscreen(); }
+  });
+
+  var tx = null, ty = null;
+  var stage = document.getElementById('stage');
+  stage.addEventListener('touchstart', function(e){ tx = e.changedTouches[0].clientX; ty = e.changedTouches[0].clientY; }, {passive:true});
+  stage.addEventListener('touchend', function(e){
+    if (tx === null) return;
+    var dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4){ go(dx < 0 ? cur + 1 : cur - 1); }
+    tx = null;
+  }, {passive:true});
+
+  /* five-chain stepper */
+  var chains = [
+    {t:'Chrome — one-click remote code execution', d:'Four bugs in sequence took a page visit to code outside the sandbox. Google assigned 62 CVEs to the Chrome work and patched them as of Chrome 156.'},
+    {t:'Safari — one-click data access', d:'A JavaScriptCore use-after-free, a Gigacage bypass, and a WebContent IPC bug read files from disk and turned off the same-origin policy. The attack moved data only.'},
+    {t:'Android — lock screen bypass', d:'Three bugs and a USB fallback path removed the lock checks one at a time. Claude tested the chain live on a physical Google Pixel 9.'},
+    {t:'Windows — remote denial of service', d:'An out-of-bounds read in kernel QUIC code crashed the machine with a few packets. Microsoft resolved the report as CVE-2026-33096.'},
+    {t:'Linux — zero-click remote code execution', d:'A race use-after-free in the kernel networking stack ran commands as root. The proof of concept took 48 minutes to leak a pointer and 5 more minutes to reach a shell. CVE-2026-98432.'}
+  ];
+  var panel = document.getElementById('stepPanel');
+  var stepBtns = Array.prototype.slice.call(document.querySelectorAll('.stepbtn'));
+  function showStep(i){
+    stepBtns.forEach(function(b, j){ b.setAttribute('aria-pressed', j === i ? 'true' : 'false'); });
+    panel.innerHTML = '';
+    var h = document.createElement('h3'); h.textContent = chains[i].t;
+    var p = document.createElement('p'); p.style.margin = '0'; p.textContent = chains[i].d;
+    panel.appendChild(h); panel.appendChild(p);
+  }
+  stepBtns.forEach(function(b, i){ b.addEventListener('click', function(){ showStep(i); }); });
+  showStep(0);
+
+  /* chain animations */
+  var timers = [];
+  function clearTimers(){ timers.forEach(clearTimeout); timers = []; }
+  function later(fn, ms){ if (reduced){ fn(); } else { timers.push(setTimeout(fn, ms)); } }
+
+  var chromeMsgs = [
+    'Step 1 of 4: the heap bug gives control inside V8.',
+    'Step 2 of 4: the second bug breaks the sandbox, and the ROP chain takes the renderer.',
+    'Step 3 of 4: the CacheStorage race reads memory outside the sandbox.',
+    'Step 4 of 4: the FedCM use-after-free runs code outside the sandbox. Chain complete.'
+  ];
+  function playChrome(){
+    clearTimers();
+    var steps = document.querySelectorAll('#chromeChain .cstep');
+    var msg = document.getElementById('chromeMsg');
+    steps.forEach(function(s){ s.classList.remove('on','done'); });
+    msg.textContent = 'Running…';
+    steps.forEach(function(s, i){
+      later(function(){
+        steps.forEach(function(o, j){ o.classList.toggle('done', j < i); o.classList.toggle('on', j === i); });
+        msg.innerHTML = '';
+        var b = document.createElement('b'); b.textContent = chromeMsgs[i];
+        msg.appendChild(b);
+        if (i === steps.length - 1){ s.classList.add('done'); }
+      }, i * 1100);
+    });
+  }
+
+  function playLinux(){
+    clearTimers();
+    var seg1 = document.getElementById('lseg1'), seg2 = document.getElementById('lseg2');
+    var f1 = seg1.querySelector('.fill'), f2 = seg2.querySelector('.fill');
+    var msg = document.getElementById('linuxMsg');
+    var term = document.getElementById('linuxTerm');
+    [f1, f2].forEach(function(f){ f.style.transition = 'none'; f.style.width = '0%'; });
+    seg1.classList.remove('filled'); seg2.classList.remove('filled');
+    term.classList.remove('show');
+    msg.textContent = 'Stage 1 running: the kernel copies extra bytes into a reply…';
+    void f1.offsetWidth;
+    if (reduced){
+      f1.style.width = '100%'; f2.style.width = '100%';
+      seg1.classList.add('filled'); seg2.classList.add('filled');
+      term.classList.add('show');
+      msg.textContent = 'Stage 1 done at 48 minutes. Stage 2 done at 53 minutes. Shell runs as root.';
+      return;
+    }
+    f1.style.transition = 'width 2.6s linear'; f1.style.width = '100%';
+    later(function(){
+      seg1.classList.add('filled');
+      msg.textContent = 'Stage 1 done at 48 minutes: one kernel pointer leaked, KASLR defeated. Stage 2 running…';
+      f2.style.transition = 'width .7s linear'; f2.style.width = '100%';
+    }, 2650);
+    later(function(){
+      seg2.classList.add('filled');
+      term.classList.add('show');
+      msg.textContent = 'Stage 2 done at 53 minutes: the callback pointer ran a shell command as root.';
+    }, 3450);
+  }
+
+  document.querySelectorAll('[data-replay]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if (btn.getAttribute('data-replay') === 'chrome') playChrome();
+      else playLinux();
+    });
+  });
+
+  function fromHash(){
+    var n = parseInt((location.hash || '').replace('#',''), 10);
+    if (!isNaN(n) && n >= 1 && n <= total) go(n - 1); else go(0);
+  }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>
